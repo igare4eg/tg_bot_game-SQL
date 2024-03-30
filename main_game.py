@@ -1,34 +1,54 @@
+import datetime
+import random
+import time
+
 import telebot
-import time, random, datetime
-from telebot.types import Message, InlineKeyboardButton as IB, CallbackQuery
 from telebot import types
+from telebot.types import Message, InlineKeyboardButton as IB, CallbackQuery
+
 from config import TOKEN
-from text import *
 from database import *
-from fight import *
 
 bot = telebot.TeleBot(TOKEN)
 clear = types.ReplyKeyboardRemove()
 
 temp = {}
 
+powers = {
+    'Огонь': (120, 15),
+    'Воздух': (100, 25),
+    "Земля": (100, 20),
+    "Металл": (110, 20),
+    "Дерево": (130, 14),
+    "Вода": (110, 25)
+}
+
+
+# class Enemy:
+#     enemies = {
+#         'Вурдалак': (80, 20),
+#         'Призрак': (85, 15),
+#
+#     }
+
 
 @bot.message_handler(["start"])
-def start(msg: Message):
-    if is_new_player(msg):
-        reg_1(msg)
-        temp[msg.chat.id] = {"nick": None}
+def start(m: Message):
+    if is_new_player(m):
+        temp[m.chat.id] = {}
+        reg_1(m)
     else:
-        pass
+        menu(m)
 
 
 @bot.message_handler(["menu"])
-def menu(msg: Message):
+def menu(m: Message):
     try:
-        print(temp[msg.chat.id])
+        print(temp[m.chat.id])
     except KeyError:
-        temp[msg.chat.id] = {}
-    bot.send_message(msg.chat.id, menu1, reply_markup=clear)
+        temp[m.chat.id] = {}
+    txt = "Что будешь делать?\n/square - идём на главную площадь\n/home - путь домой\n/stats - статистика"
+    bot.send_message(m.chat.id, txt, reply_markup=clear)
 
 
 @bot.message_handler(["square"])
@@ -213,58 +233,60 @@ def block_handler(msg: Message, side: str):
     block(msg)
 
 
-def is_new_player(msg: Message):
+def is_new_player(m: Message):
     result = db.read_all()
     for user in result:
-        if user[0] == msg.chat.id:
+        if user[0] == m.chat.id:
             return False
     return True
 
 
-def reg_1(msg: Message):
-    bot.send_message(msg.chat.id, text=reg % msg.from_user.first_name)
-    bot.register_next_step_handler(msg, reg_2)
+def reg_1(m: Message):
+    txt = ("Привет, %s. В этой игре ты отринешь свою сущность и станешь настоящим магом 🧙‍♂️. Мир на пороге "
+           "уничтожения: народ огня 🔥 развязал войну и теперь все пытаются помешать им. Именно ты станешь тем, "
+           "кто спасёт человечество ⚔️!\nЯ верю в тебя!\n\nКак твоё имя, ученик?")
+    bot.send_message(m.chat.id, text=txt % m.from_user.first_name)
+    bot.register_next_step_handler(m, reg_2)
 
 
-def reg_2(msg: Message):
-    if not temp[msg.chat.id]["nick"]:
-        temp[msg.chat.id]["nick"] = msg.text
+def reg_2(m: Message):
+    temp[m.chat.id]["nick"] = m.text
     kb = types.ReplyKeyboardMarkup(True, True)
     kb.row("Вода", "Воздух")
     kb.row("Металл", "Земля")
     kb.row("Огонь", "Дерево")
-    bot.send_message(msg.chat.id, "Выбери стихию:", reply_markup=kb)
-    bot.register_next_step_handler(msg, reg_3)
+    bot.send_message(m.chat.id, "Выбери стихию:", reply_markup=kb)
+    bot.register_next_step_handler(m, reg_3)
 
 
-def reg_3(msg: Message):
-    temp[msg.chat.id]["power"] = msg.text
-    hp, dmg = powers[msg.text]
-    db.write([msg.chat.id, temp[msg.chat.id]["nick"], temp[msg.chat.id]["power"], hp, dmg, 1, 0])
-    heals.write([msg.chat.id, {}])
+def reg_3(m: Message):
+    temp[m.chat.id]["power"] = m.text
+    hp, dmg = powers[m.text]
+    db.write([m.chat.id, temp[m.chat.id]["nick"], temp[m.chat.id]["power"], hp, dmg, 1, 0])
+    heals.write([m.chat.id, {}])
     print("Пользователь добавлен в базу данных")
-    bot.send_message(msg.chat.id, tren)
+    bot.send_message(m.chat.id, "Инициализация ...")
     time.sleep(2)
-    menu(msg)
+    menu(m)
 
 
-def reg_4(msg: Message):
-    if msg.text == "Тренировка":
-        workout(msg)
-    if msg.text == "Проверить силы":
-        exam(msg)
+def reg_4(m: Message):
+    if m.text == "Тренировка":
+        workout(m)
+    if m.text == "Проверить силы":
+        exam(m)
 
 
-def reg_5(msg: Message):
-    if msg.text == "Пополнить ХП":
-        eat(msg)
-    if msg.text == "Передохнуть":
-        sleep(msg)
+def reg_5(m: Message):
+    if m.text == "Пополнить ХП":
+        eat(m)
+    if m.text == "Передохнуть":
+        sleep(m)
 
 
-def reg_6(msg: Message):
-    if msg.text == "Открыть статистику":
-        stats(msg)
+def reg_6(m: Message):
+    if m.text == "Открыть статистику":
+        stats(m)
 
 
-bot.polling(non_stop=True)
+bot.infinity_polling()
